@@ -156,6 +156,54 @@ def _cliente_gspread():
     return gspread.authorize(creds)
 
 
+def _falha_google(nome: str, aba: str | None, erro: Exception):
+    """Mostra o motivo real da falha (o Streamlit Cloud esconde o traceback) e para a página."""
+    import gspread
+
+    try:
+        conta = st.secrets["gcp_service_account"].get("client_email", "?")
+    except Exception:
+        conta = "?"
+    if isinstance(erro, gspread.exceptions.SpreadsheetNotFound):
+        motivo = (f"Planilha '{nome}' não encontrada. Confira o ID em Secrets → [planilhas] e compartilhe "
+                  f"a planilha com **{conta}** (Leitor).")
+    elif isinstance(erro, gspread.exceptions.WorksheetNotFound):
+        motivo = f"A planilha '{nome}' não tem a aba **{aba}** (o nome precisa ser idêntico)."
+    elif isinstance(erro, gspread.exceptions.APIError):
+        codigo = getattr(erro, "code", "?")
+        texto = str(erro)
+        if "has not been used" in texto or "is disabled" in texto:
+            motivo = "A **Google Sheets API** não está ativada no projeto da conta de serviço (Google Cloud → APIs)."
+        elif "not supported for this document" in texto:
+            motivo = (f"A planilha '{nome}' é um arquivo **.xlsx** no Drive, não uma Planilha Google. "
+                      "Abra e use Arquivo → Salvar como Planilhas Google, e use o ID da nova.")
+        elif codigo == 403:
+            motivo = f"Sem permissão na planilha '{nome}'. Compartilhe com **{conta}** (Leitor)."
+        else:
+            motivo = f"Erro da API do Google ({codigo}) na planilha '{nome}'."
+    elif isinstance(erro, (ValueError, KeyError)) or "google.auth" in type(erro).__module__:
+        motivo = ("Credencial da conta de serviço inválida em Secrets → [gcp_service_account] "
+                  "(confira private_key com os \\n e o client_email). Gere de novo com gerar_secrets.py.")
+    else:
+        motivo = f"Falha ao ler a planilha '{nome}'."
+    st.error(f"{motivo}\n\nDetalhe técnico: `{type(erro).__name__}: {str(erro)[:300]}`")
+    st.stop()
+
+
+def _abrir(nome: str):
+    try:
+        return _cliente_gspread().open_by_key(planilha_id(nome))
+    except Exception as e:  # noqa: BLE001 — qualquer falha vira mensagem legível
+        _falha_google(nome, None, e)
+
+
+def _valores(sh, nome: str, aba: str) -> list[list]:
+    try:
+        return sh.worksheet(aba).get_all_values(value_render_option="UNFORMATTED_VALUE")
+    except Exception as e:  # noqa: BLE001
+        _falha_google(nome, aba, e)
+
+
 def usa_credencial() -> bool:
     try:
         return "gcp_service_account" in st.secrets
@@ -179,9 +227,7 @@ def _aba_bruta(nome: str, aba: str, arquivo_local: str, obrigatoria: bool = True
         except KeyError:
             if not obrigatoria:  # planilha opcional não configurada: segue sem ela
                 return pd.DataFrame()
-        chave = planilha_id(nome)  # confere o ID antes de conectar no Google
-        ws = _cliente_gspread().open_by_key(chave).worksheet(aba)
-        valores = ws.get_all_values(value_render_option="UNFORMATTED_VALUE")
+        valores = _valores(_abrir(nome), nome, aba)
         return pd.DataFrame(valores[1:])
     arq = DATA_DIR / arquivo_local
     if not arq.exists():
@@ -206,7 +252,7 @@ def _followup_bruto() -> pd.DataFrame:
     if encerrados.empty:
         return ativos
     # alinha pelas colunas comuns (A..última do menor) e marca a origem
-    n = min(ativos.shape[1], encerrados.shape[1]) - 1
+    n = min(ativos.shape[1] - 1, encerrados.shape[1])  # -1 tira a coluna _base já adicionada
     ativos = ativos.iloc[:, list(range(n)) + [-1]]
     encerrados = encerrados.iloc[:, :n].assign(_base="Encerrado")
     ativos.columns = encerrados.columns = list(range(n)) + ["_base"]
@@ -216,11 +262,10 @@ def _followup_bruto() -> pd.DataFrame:
 @st.cache_data(ttl=CACHE_TTL, show_spinner="Lendo tabelas de tarifas…")
 def tarifas() -> dict[str, pd.DataFrame]:
     if usa_credencial():
-        chave = planilha_id("tarifas")
-        sh = _cliente_gspread().open_by_key(chave)
+        sh = _abrir("tarifas")
         out = {}
         for aba in TARIFAS_ABAS:
-            vals = sh.worksheet(aba).get_all_values(value_render_option="UNFORMATTED_VALUE")
+            vals = _valores(sh, "tarifas", aba)
             out[aba] = pd.DataFrame(vals[1:], columns=vals[0]).replace("", None)
         return out
     arq = DATA_DIR / "tarifas.xlsx"
@@ -274,7 +319,8 @@ def followup() -> pd.DataFrame:
     )
     # se a quantidade não foi preenchida mas há números de container, usa a contagem
     sem_qtd = df["qtd_containers"].isna() & df["containers"].map(len).gt(0)
-    df.loc[sem_qtd, "qtd_containers"] = df.loc[sem_qtd, "containers"].map(len)
+    # astype(float): no pandas 3, atribuir a série vazia (dtype object) numa coluna float dá TypeError
+    df.loc[sem_qtd, "qtd_containers"] = df.loc[sem_qtd, "containers"].map(len).astype(float)
 
     df["status_chave"] = df["status"].map(_chave)
     df["destino_chave"] = df["destino"].map(_chave)
