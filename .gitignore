@@ -1,0 +1,12 @@
+# dados e credenciais NUNCA vão para o repositório
+data/
+*.xlsx
+*.xls
+*.csv
+*.pkl
+.streamlit/secrets.toml
+*.json
+# só para uso local
+abrir_plataforma.bat
+__pycache__/
+.venv/

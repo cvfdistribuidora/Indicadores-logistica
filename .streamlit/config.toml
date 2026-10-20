@@ -1,0 +1,23 @@
+# Identidade visual Grupo CVF — marinho #0C0526 e amarelo #FCB600
+[theme]
+base = "light"
+primaryColor = "#0C0526"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F3F8"
+textColor = "#0C0526"
+linkColor = "#8A6200"
+borderColor = "#E6E4EE"
+font = "sans-serif"
+baseRadius = "medium"
+
+[theme.sidebar]
+backgroundColor = "#F4F3F8"
+
+[server]
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
