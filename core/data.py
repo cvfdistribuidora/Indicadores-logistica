@@ -160,6 +160,10 @@ def _falha_google(nome: str, aba: str | None, erro: Exception):
     """Mostra o motivo real da falha (o Streamlit Cloud esconde o traceback) e para a página."""
     import gspread
 
+    # o gspread 6 transforma o 403 da API num PermissionError vazio; o motivo real fica na causa
+    if isinstance(erro, PermissionError) and isinstance(erro.__cause__, Exception):
+        erro = erro.__cause__
+
     try:
         conta = st.secrets["gcp_service_account"].get("client_email", "?")
     except Exception:
