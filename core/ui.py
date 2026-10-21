@@ -55,10 +55,18 @@ div[data-testid="stSidebarHeader"] {{padding-top: 1.2rem; padding-bottom: 1.2rem
 h3 {{font-size: 1.15rem !important; font-weight: 700 !important;}}
 div[data-testid="stMetric"] {{
   background: #FFFFFF; border: 1px solid {BORDA}; border-left: 5px solid {AMARELO};
-  border-radius: 12px; padding: 14px 18px;
+  border-radius: 12px; padding: 12px 14px; min-width: 0;
 }}
-div[data-testid="stMetricLabel"] p {{color: {CINZA}; font-size: .85rem;}}
-div[data-testid="stMetricValue"] {{color: {MARINHO}; font-family: 'Montserrat', sans-serif; font-weight: 700;}}
+/* sem prefixo de tag: em versões novas do Streamlit o rótulo é <label>, não <div> */
+[data-testid="stMetricLabel"] p {{color: {CINZA}; font-size: .85rem;}}
+[data-testid="stMetricValue"] {{color: {MARINHO}; font-family: 'Montserrat', sans-serif; font-weight: 700;
+  font-size: clamp(0.95rem, 1.5vw, 1.9rem) !important; line-height: 1.25;}}
+/* o Streamlit corta rótulo e valor com "..." quando o card é estreito: mostra inteiro */
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *,
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] * {{
+  overflow: visible !important; text-overflow: clip !important; line-height: 1.25;}}
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{white-space: normal !important;}}
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] * {{white-space: nowrap !important;}}
 button[data-baseweb="tab"][aria-selected="true"] p {{font-weight: 700;}}
 div[data-baseweb="tab-highlight"] {{background-color: {AMARELO} !important; height: 3px;}}
 .chip {{display:inline-block; padding:2px 10px; border-radius:999px; font-size:.75rem; font-weight:700; letter-spacing:.02em;}}
